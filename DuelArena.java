@@ -5,7 +5,6 @@ import a3.commands.ShootBullet;
 import sage.camera.ICamera;
 import graphicslib3D.Point3D;
 import graphicslib3D.Vector3D;
-import java.awt.Choice;
 import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.GraphicsDevice;
@@ -21,6 +20,7 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
 import net.java.games.input.Component;
 import net.java.games.input.Controller;
@@ -78,7 +78,9 @@ public class DuelArena extends BaseGame
     public DuelArena(boolean fsemOn)
     {
         this.fsemOn = fsemOn;
-        myInitDiag = new InitDialog();        
+        GraphicsEnvironment env = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        device = env.getDefaultScreenDevice();
+        myInitDiag = new InitDialog(getSystemInfo());        
     }
    /*
     * Override of BaseGame's method for initializing a display system which will be used to set FSEM,
@@ -88,11 +90,8 @@ public class DuelArena extends BaseGame
     @Override
     protected void initSystem()
     {
-        GraphicsEnvironment env = GraphicsEnvironment.getLocalGraphicsEnvironment();
-        device = env.getDefaultScreenDevice();
         
         //output display information
-        outputSystemInfo();
         ControllerEnvironment ce = ControllerEnvironment.getDefaultEnvironment();
         cs = ce.getControllers();
         myInitDiag.setVisible(true);
@@ -260,7 +259,7 @@ public class DuelArena extends BaseGame
     public void createScene()
     {
         rootNode = new Group("root node");
-        //create world axis
+        //create world axis        
         Point3D origin = new Point3D(0,0,0);
         Point3D xEnd = new Point3D(100,0,0);
         Point3D yEnd = new Point3D(0,100,0);
@@ -365,11 +364,12 @@ public class DuelArena extends BaseGame
      * This method outputs information specific to th computer that this application is running on such as,
      * resolution/bid-depth/refresh-rate of monitor and the available controllers connected to the computer.
      */
-    public void outputSystemInfo()
+    public String [] getSystemInfo()
     {
-        System.out.println("\nMonitor information:");
-        System.out.println("\twidth: " + device.getDisplayMode().getWidth() + "\n\theight " + device.getDisplayMode().getHeight()
-                + "\n\tbit depth: " + device.getDisplayMode().getBitDepth() + "\n\trefresh rate: " + device.getDisplayMode().getRefreshRate());
+        String [] out = {"Monitor information:", "Width:  " + device.getDisplayMode().getWidth(), 
+            "Height  " + device.getDisplayMode().getHeight(), "Bit Depth:  " + device.getDisplayMode().getBitDepth(),
+            "Refresh Rate:  " + device.getDisplayMode().getRefreshRate() };
+        return out;
     }
     
     /*
@@ -508,17 +508,30 @@ public class DuelArena extends BaseGame
     {
         private ArrayList button = new ArrayList();
         private ArrayList controllers = new ArrayList();
-        public InitDialog()
+        public InitDialog(String [] info)
         {
             ControllerEnvironment ce = ControllerEnvironment.getDefaultEnvironment();            
             Controller [ ] cs = ce.getControllers();
             JPanel buttonPan = new JPanel();
-            
+            JLabel sysInfo = new JLabel(info[0], JLabel.CENTER);
+            add(sysInfo);
+            sysInfo = new JLabel(info[1], JLabel.CENTER);
+            add(sysInfo);
+            sysInfo = new JLabel(info[2], JLabel.CENTER);
+            add(sysInfo);
+            sysInfo = new JLabel(info[3], JLabel.CENTER);
+            add(sysInfo);
+            sysInfo = new JLabel(info[4], JLabel.CENTER);
+            add(sysInfo);
+            sysInfo = new JLabel(" ", JLabel.CENTER);
+            add(sysInfo);
+            sysInfo = new JLabel(" Please choose a controller:", JLabel.CENTER);
+            add(sysInfo);
             setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-            setLayout(new GridLayout());
-            setSize(275, 125);
+            setLayout(new GridLayout(8,1));
+            setSize(275, 300);
             setLocation(500, 300);
-            setTitle("Choose your controller");
+            setTitle("GAME SETUP");
             int numOfControllers = 0;
             for(int i = 0; i < cs.length; i++)
             {
@@ -533,6 +546,7 @@ public class DuelArena extends BaseGame
                     ((JButton)button.get(numOfControllers - 1)).addActionListener(this);
                 }
             }
+            setSize(numOfControllers * 125, 300);
             add(buttonPan);            
         }
         @Override

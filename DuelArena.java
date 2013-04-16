@@ -2,22 +2,24 @@ package a3;
 
 import a3.commands.QuitGameAction;
 import a3.commands.ShootBullet;
+import graphicslib3D.Matrix3D;
 import sage.camera.ICamera;
 import graphicslib3D.Point3D;
 import graphicslib3D.Vector3D;
 import java.awt.Color;
-import java.awt.FlowLayout;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
 import java.awt.GridLayout;
-import java.awt.Label;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.File;
 import sage.app.BaseGame;
 import sage.scene.SceneNode;
 import sage.scene.HUDString;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import javax.media.opengl.GL;
+import javax.media.opengl.GL2;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -32,10 +34,21 @@ import sage.input.IInputManager.INPUT_ACTION_TYPE;
 import sage.input.InputManager;
 import sage.input.action.IAction;
 import sage.renderer.IRenderer;
+import sage.renderer.jogl.JOGLContextCapabilities;
 import sage.scene.Group;
+import sage.scene.SkyBox;
+import sage.scene.SkyBox.Face;
 import sage.scene.shape.Line;
 import sage.scene.shape.Pyramid;
 import sage.scene.shape.Rectangle;
+import sage.scene.state.RenderState;
+import sage.scene.state.TextureState;
+import sage.scene.state.jogl.JOGLTextureState;
+import sage.terrain.AbstractHeightMap;
+import sage.terrain.ImageBasedHeightMap;
+import sage.terrain.TerrainBlock;
+import sage.texture.Texture;
+import sage.texture.TextureManager;
 
 /**
  * Duel Arena is a game made for experimental purposes for a Game Architecture and
@@ -58,6 +71,8 @@ public class DuelArena extends BaseGame
     private HUDString timeString;
     private HUDString damageDealtString;
     
+    private TerrainBlock imageTerrain;
+    
     private HUDString player1Health,  player1Ammo;
     private int healthP1,  ammoP1;
     
@@ -71,6 +86,7 @@ public class DuelArena extends BaseGame
     private SceneNode player1;    
     private ThirdPersonCameraController cam1Controller;
     private InitDialog myInitDiag;
+    private SkyBox theSkyBox;
     
     private double formatedTime;
     private boolean fsemOn, controllerNotPicked = true;
@@ -134,6 +150,9 @@ public class DuelArena extends BaseGame
         damageDealtString.setColor(Color.yellow);
         damageDealtString.setLocation(0.40, 0.10);              
         addGameWorldObject(damageDealtString);        
+        rootNode.updateGeometricState(0, true);
+        rootNode.updateRenderStates();
+        
     }
     
     /*
@@ -144,6 +163,15 @@ public class DuelArena extends BaseGame
     @Override
     public void update(float elapsedTimeMS)
     {
+        //update skybox location
+        Point3D camLoc = camera1.getLocation();
+        Matrix3D camTranslation = new Matrix3D();
+        camTranslation.translate(camLoc.getX(), camLoc.getY(), camLoc.getZ());
+        theSkyBox.setLocalTranslation(camTranslation);
+        
+        //update avatars location relative to terrain
+        updateVerticalPosition();
+        
         checkIfGameOver();
         //update camare controller for the player
         cam1Controller.update(elapsedTimeMS);
@@ -173,7 +201,9 @@ public class DuelArena extends BaseGame
     protected void render()
     {
         IRenderer renderer = getRenderer();
-
+        renderer.clearRenderQueue();
+        renderer.addToRenderQueue(rootNode);
+        renderer.processRenderQueue();
         renderer.setCamera(camera1);
         super.render();
     }
@@ -259,6 +289,10 @@ public class DuelArena extends BaseGame
     public void createScene()
     {
         rootNode = new Group("root node");
+        //add skybox
+        createSkyBox();
+        //add terrain
+        createTerrain();
         //create world axis        
         Point3D origin = new Point3D(0,0,0);
         Point3D xEnd = new Point3D(100,0,0);
@@ -270,11 +304,6 @@ public class DuelArena extends BaseGame
         rootNode.addChild(yAxis);
         Line zAxis = new Line (origin, zEnd, Color.blue, 2);
         rootNode.addChild(zAxis);
-        //create floor
-        Rectangle floor = new Rectangle(150, 150);
-        floor.rotate(90, new Vector3D(1,0,0));
-        floor.setColor(Color.gray);
-        rootNode.addChild(floor);
         //add axis and floor to game world       
         addGameWorldObject(rootNode);
         //        addGameWorldObject(floor);
@@ -349,7 +378,7 @@ public class DuelArena extends BaseGame
     {
         //add input manager
         IInputManager im = getInputManager();
-        cam1Controller = new ThirdPersonCameraController(camera1, player1, im, controller1.getName(), 1.57f);
+        cam1Controller = new ThirdPersonCameraController(camera1, player1, im, controller1.getName(), 1.57f, 20f, 0.3f, 15f);
         
         IAction shootBullet1 = new ShootBullet(cam1Controller, this);
         im.associateAction(controller1.getName(), Component.Identifier.Key.C, shootBullet1, IInputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY );
@@ -366,9 +395,9 @@ public class DuelArena extends BaseGame
      */
     public String [] getSystemInfo()
     {
-        String [] out = {"Monitor information:", "Width:  " + device.getDisplayMode().getWidth(), 
-            "Height  " + device.getDisplayMode().getHeight(), "Bit Depth:  " + device.getDisplayMode().getBitDepth(),
-            "Refresh Rate:  " + device.getDisplayMode().getRefreshRate() };
+        String [] out = {"Monitor information:", "Width: " + device.getDisplayMode().getWidth(), 
+            "Height: " + device.getDisplayMode().getHeight(), "  Bit Depth:  " + device.getDisplayMode().getBitDepth(),
+            "Refresh Rate: " + device.getDisplayMode().getRefreshRate() };
         return out;
     }
     
@@ -479,11 +508,10 @@ public class DuelArena extends BaseGame
             //setGameOver(true);
         }
     }
-     void setController(Controller controller)
-    {
-        controller1 = controller;
-    }
 
+     /*
+      * use a "sleep thread"  to wait for the controller to be picked from the startup window
+      */
     private void setupController()
     {
         while(controllerNotPicked)
@@ -498,6 +526,105 @@ public class DuelArena extends BaseGame
             }    
         }
         setDisplaySystem(display);
+    }
+    /*
+     * this method creates a skybox using the sage library. Imports six images to create a cube with the 
+     * six images on each face of the cube.
+     */
+    private void createSkyBox()
+    {
+        theSkyBox = new SkyBox("world", 20.0f, 20.0f, 20.0f);
+        Texture texNorth = TextureManager.loadTexture2D("." + File.separator + "textures" + File.separator + "sbFront.bmp");
+        Texture texEast = TextureManager.loadTexture2D("." + File.separator + "textures" + File.separator + "sbRight.bmp");
+        Texture texSouth = TextureManager.loadTexture2D("." + File.separator + "textures" + File.separator + "sbBack.bmp");
+        Texture texWest = TextureManager.loadTexture2D("." + File.separator + "textures" + File.separator + "sbLeft.bmp");
+        Texture texUp = TextureManager.loadTexture2D("." + File.separator + "textures" + File.separator + "sbTop.bmp");
+        Texture texDown = TextureManager.loadTexture2D("." + File.separator + "textures" + File.separator + "sbBot.bmp");
+        
+        theSkyBox.setTexture(Face.North, texNorth);
+        theSkyBox.setTexture(Face.East, texEast);
+        theSkyBox.setTexture(Face.South, texSouth);
+        theSkyBox.setTexture(Face.West, texWest);
+        theSkyBox.setTexture(Face.Up, texUp);
+        theSkyBox.setTexture(Face.Down, texDown);
+        rootNode.addChild(theSkyBox);
+    }
+
+    /*
+     * call this method to create the terrain, currently implements an image based height map that will be used
+     * for creating the terrain block.
+     */
+    private void createTerrain()
+    {
+        ImageBasedHeightMap heightMap = new ImageBasedHeightMap("." + File.separator + "terrain" +  File.separator + "HeightMap1.jpg");
+        imageTerrain = createTerrainBlock(heightMap);
+        rootNode.addChild(imageTerrain);
+        TextureState terrainTexState = createTextureState("terraintex1.png ");
+        imageTerrain.setRenderState(terrainTexState);
+    }
+    
+    /*
+     * @return returns a TerrainBlock given an abstract height map
+     * @param pass an already instantiated height map to be used for building a terrain block
+     */
+    private TerrainBlock createTerrainBlock(AbstractHeightMap heightMap)
+    {
+        Vector3D terrainScale = new Vector3D(10, 1, 10);
+        int terrainSize = heightMap.getSize();
+        System.out.println("height map size: " + terrainSize);
+        float cornerHeight = heightMap.getTrueHeightAtPoint(0,0);
+        Point3D terrainOrigin = new Point3D(0, -cornerHeight, 0);
+        String name = "Terrain: " + heightMap.getClass().getSimpleName();
+        return new TerrainBlock(name, terrainSize, terrainScale, heightMap.getHeightData(), terrainOrigin);
+    }
+    
+    /*
+     * updates the avatar's y location for the player based off of its terrain location
+     */
+    private void updateVerticalPosition()
+    {
+        Point3D curTargetLoc = new Point3D(cam1Controller.getTarget().getLocalTranslation().getCol(3));
+        if(targetLiesInsideTerrain(imageTerrain, curTargetLoc))
+        {
+            float x = (float) curTargetLoc.getX();
+            float z = (float) curTargetLoc.getZ();
+            float heightRelativeToTerrainOrigin = imageTerrain.getHeight(x,z);
+            double desiredHeight = heightRelativeToTerrainOrigin + imageTerrain.getOrigin().getY()+1;
+            cam1Controller.getTarget().getLocalTranslation().setElementAt(1, 3, desiredHeight);
+        }
+        else{//target is outside of terrain, so dont change y value
+        }
+    }
+    
+    /*
+     * @return returns true if the avatar is within the terrain bounds or false if outside.
+     * @param tb is the terrain block that is to be checked whether the avatar is inside the terrain
+     * @param loc is the location of the avatar in the game world
+     */
+    private boolean targetLiesInsideTerrain(TerrainBlock tb, Point3D loc)
+    {
+        float limit = tb.getSize()-1;
+        Vector3D scaleFactor = tb.getScaleFactor();
+        double xLimit = limit * scaleFactor.getX();
+        double zLimit = limit * scaleFactor.getZ();
+        double xLoc = loc.getX();
+        double yLoc = loc.getY();
+        double zLoc = loc.getZ();
+        return ((xLoc >= 0 ) && (xLoc <= xLimit) && (zLoc >= 0) && (zLoc <= zLimit));
+            
+    }
+
+    /*
+     * creates a new texture state using the texture name passed to the method
+     * @return TextureState, a texture state that will be used for the terrain
+     * @param is the name of the file to use as a texture for this tecture state
+     */
+    private TextureState createTextureState(String fileName)
+    {                
+        TextureState texState = (TextureState)this.getRenderer().createRenderState(RenderState.RenderStateType.Texture);
+        Texture terrainTex = TextureManager.loadTexture2D("." + File.separator + "terrain" + File.separator + fileName);
+        texState.setTexture(terrainTex);
+        return texState;
     }
     
      /*
@@ -515,21 +642,17 @@ public class DuelArena extends BaseGame
             JPanel buttonPan = new JPanel();
             JLabel sysInfo = new JLabel(info[0], JLabel.CENTER);
             add(sysInfo);
-            sysInfo = new JLabel(info[1], JLabel.CENTER);
+            sysInfo = new JLabel("<html><p>" + info[1] + "<br>" + info[2] +  "</p></html>", JLabel.CENTER);
             add(sysInfo);
-            sysInfo = new JLabel(info[2], JLabel.CENTER);
+            sysInfo = new JLabel("<html>&nbsp;&nbsp;&nbsp;" + info[3]+ "<br>" + info[4] + "</html>", JLabel.CENTER);
             add(sysInfo);
-            sysInfo = new JLabel(info[3], JLabel.CENTER);
+            sysInfo = new JLabel("===============================", JLabel.CENTER);
             add(sysInfo);
-            sysInfo = new JLabel(info[4], JLabel.CENTER);
-            add(sysInfo);
-            sysInfo = new JLabel(" ", JLabel.CENTER);
-            add(sysInfo);
-            sysInfo = new JLabel(" Please choose a controller:", JLabel.CENTER);
+            sysInfo = new JLabel("Please choose a controller:", JLabel.CENTER);
             add(sysInfo);
             setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             setLayout(new GridLayout(8,1));
-            setSize(275, 300);
+            setSize(275, 250);
             setLocation(500, 300);
             setTitle("GAME SETUP");
             int numOfControllers = 0;

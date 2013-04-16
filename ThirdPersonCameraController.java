@@ -40,7 +40,7 @@ public class ThirdPersonCameraController
     private boolean hasLeftAction = false;
     private boolean hasRightAction = false;
     
-    public ThirdPersonCameraController(ICamera cam, SceneNode target, IInputManager inputMgr, String controllerName, float azimuth)
+    public ThirdPersonCameraController(ICamera cam, SceneNode target, IInputManager inputMgr, String controllerName, float azimuth, float targetRot, float camElev, float camDist)
     {
         this.cam = cam;
         this.target = target;
@@ -50,9 +50,9 @@ public class ThirdPersonCameraController
         //targetTransform.translate(target.getLocalTranslation().getCol(3).getX(),target.getLocalTranslation().getCol(3).getY(),target.getLocalTranslation().getCol(3).getZ());
         //System.out.println("targetTransform = " + targetTransform);
         cameraAzimuth = azimuth;
-        targetRotation = 20;
-        cameraElevation = .3f;
-        cameraDistanceFromTarget = 5f;
+        targetRotation = targetRot;
+        cameraElevation = camElev;
+        cameraDistanceFromTarget = camDist;
         worldUp = new Vector3D(0, 1, 0);
         targetOffset = new Vector3D(0, 0, 0);
         updateTarget();
@@ -184,6 +184,11 @@ public class ThirdPersonCameraController
         //targetOffset = targetOffset.add(offsetVec);
         System.out.println("targetLoc is : " + target.getWorldTranslation().getCol(3));
         System.out.println("camLoc is : " + cam.getLocation());
+    }
+    
+    public SceneNode getTarget()
+    {
+        return target;
     }
     
     

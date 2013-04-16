@@ -30,7 +30,7 @@ public class MyBullet extends Pyramid
     public MyBullet(ThirdPersonCameraController controller)
     {
         moveDirection = new Vector3D(controller.getTargetsCamViewDir().getX(), controller.getTargetsCamViewDir().getY(), controller.getTargetsCamViewDir().getZ());
-        velocity = 0.6;
+        velocity = 1.5;
         controllerName = controller.getControllerName();
     }
 

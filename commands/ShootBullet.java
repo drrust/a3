@@ -49,7 +49,7 @@ public class ShootBullet extends GameAbstractInputAction
        if(isOutsideDeadZone())
         {
             MyBullet bullet = new  MyBullet(myController);
-            bullet.translate((float)myController.getTargetLocation().getX(), 1, (float)myController.getTargetLocation().getZ());
+            bullet.translate((float)myController.getTargetLocation().getX(), (float)myController.getTargetLocation().getY(), (float)myController.getTargetLocation().getZ());
             bullet.scale(0.1f, 0.3f, 0.1f);
             bullet.rotate(-90, myController.getTargetsCamRightAxis());
             ((BoundingSphere)bullet.getLocalBound()).setRadius(0.6f); //change bounding sphere on bullet

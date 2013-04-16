@@ -63,8 +63,8 @@ public class DuelArena extends BaseGame
 {
     protected Group rootNode;
     
-    private final int X_BULLET_BOUNDS = 150;
-    private final int Z_BULLET_BOUNDS = 150;
+    private final int X_BULLET_BOUNDS = 1250;
+    private final int Z_BULLET_BOUNDS = 1200;
     
     private float time = 0;
     private float pointTimer;
@@ -73,7 +73,7 @@ public class DuelArena extends BaseGame
     
     private TerrainBlock imageTerrain;
     
-    private HUDString player1Health,  player1Ammo;
+    private HUDString player1Health,  player1Ammo, player1Loc;
     private int healthP1,  ammoP1;
     
     private ArrayList<SceneNode> removableObjects;
@@ -138,7 +138,7 @@ public class DuelArena extends BaseGame
         
         //initialize objects in world
         createScene();
-        
+               
         //create player avatars, HUDS, and cameras
         createPlayers();
         
@@ -182,12 +182,15 @@ public class DuelArena extends BaseGame
         pointDisplayTimer();
         //update the current health and ammo on the HUD
         player1Health.setText("Health: " + healthP1);
-        player1Ammo.setText("Ammo: " + ammoP1);
+        player1Ammo.setText("Ammo: " + ammoP1);        
+         DecimalFormat df = new DecimalFormat("0");
+        player1Loc.setText("Player Location: " + df.format(getPlayer1Location().getX()) + ", " + 
+                                                                df.format(getPlayer1Location().getY()) +  ", " + df.format(getPlayer1Location().getZ()));
         
         //update elapsed time on HUD
         time += elapsedTimeMS;
-        DecimalFormat df = new DecimalFormat("0.0");
-        formatedTime = Double.parseDouble(df.format(time/1000));
+        DecimalFormat dfTime = new DecimalFormat("0.0");
+        formatedTime = Double.parseDouble(dfTime.format(time/1000));
         timeString.setText("Time = " + formatedTime);        
         
         //call update to BaseGame
@@ -275,7 +278,7 @@ public class DuelArena extends BaseGame
             {
                 double xCheck = ((MyBullet)s).getLocation().getX();
                 double zCheck = ((MyBullet)s).getLocation().getZ();
-                 if(xCheck > X_BULLET_BOUNDS || xCheck < -X_BULLET_BOUNDS ||  zCheck > Z_BULLET_BOUNDS || zCheck < -Z_BULLET_BOUNDS)
+                 if(xCheck > X_BULLET_BOUNDS || xCheck < 0 ||  zCheck > Z_BULLET_BOUNDS || zCheck < 0)
                  {
                      ((MyBullet)s).setExpired();
                  }
@@ -378,7 +381,7 @@ public class DuelArena extends BaseGame
     {
         //add input manager
         IInputManager im = getInputManager();
-        cam1Controller = new ThirdPersonCameraController(camera1, player1, im, controller1.getName(), 1.57f, 20f, 0.3f, 15f);
+        cam1Controller = new ThirdPersonCameraController(camera1, player1, im, controller1.getName(), 1.57f, 20f, 0.3f, 15f, 2f);
         
         IAction shootBullet1 = new ShootBullet(cam1Controller, this);
         im.associateAction(controller1.getName(), Component.Identifier.Key.C, shootBullet1, IInputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY );
@@ -408,7 +411,7 @@ public class DuelArena extends BaseGame
     {
         //------------------------------------------setup player 1's avatar and camera-------------------------------------------
         player1 = new Pyramid("PyramidP1");
-        player1.translate(60, 1, 30);
+        player1.translate(376, 1, 803);
         player1.rotate(-90, new Vector3D(0, 1, 0));
         addGameWorldObject(player1);
         camera1 = new JOGLCamera(display.getRenderer());
@@ -425,7 +428,7 @@ public class DuelArena extends BaseGame
         //---------------------------------------------------player's HUD strings---------------------------------------------------
         HUDString player1ID = new HUDString("Player1");
         player1ID.setName("Player1ID");
-        player1ID.setLocation(0.01, 0.90);
+        player1ID.setLocation(0.01, 0.98);
         player1ID.setRenderMode(SceneNode.RENDER_MODE.ORTHO);
         player1ID.setColor(Color.ORANGE );
         player1ID.setCullMode(SceneNode.CULL_MODE.NEVER);
@@ -434,16 +437,24 @@ public class DuelArena extends BaseGame
         healthP1 = 100;
         player1Health = new HUDString("Health: " + healthP1);
         player1Health.setName("Player1Health");
-        player1Health.setLocation(0.01, 0.86);
+        player1Health.setLocation(0.01, 0.96);
         player1Health.setRenderMode(SceneNode.RENDER_MODE.ORTHO);
         player1Health.setColor(Color.ORANGE );
         player1Health.setCullMode(SceneNode.CULL_MODE.NEVER);
         camera1.addToHUD(player1Health);
         
-        ammoP1 = 40;
+        player1Loc = new HUDString("Player Location: ");
+        player1Loc.setName("Player1Loc");
+        player1Loc.setLocation(0.01, 0.04);
+        player1Loc.setRenderMode(SceneNode.RENDER_MODE.ORTHO);
+        player1Loc.setColor(Color.ORANGE );
+        player1Loc.setCullMode(SceneNode.CULL_MODE.NEVER);
+        camera1.addToHUD(player1Loc);
+        
+        ammoP1 = 100;
         player1Ammo = new HUDString("Ammo: " + ammoP1);
         player1Ammo.setName("Player1Ammo");
-        player1Ammo.setLocation(0.01, 0.82);
+        player1Ammo.setLocation(0.01, 0.94);
         player1Ammo.setRenderMode(SceneNode.RENDER_MODE.ORTHO);
         player1Ammo.setColor(Color.ORANGE );
         player1Ammo.setCullMode(SceneNode.CULL_MODE.NEVER);
@@ -497,6 +508,10 @@ public class DuelArena extends BaseGame
         return ammoP1;
     }
 
+    public Point3D getPlayer1Location()
+    {
+        return new Point3D(cam1Controller.getTarget().getLocalTranslation().getCol(3));
+    }
     /*
      * checks if the game is over by seeing if the player has lost all health
      */
@@ -533,7 +548,7 @@ public class DuelArena extends BaseGame
      */
     private void createSkyBox()
     {
-        theSkyBox = new SkyBox("world", 20.0f, 20.0f, 20.0f);
+        theSkyBox = new SkyBox("world", 30.0f, 30.0f, 30.0f);
         Texture texNorth = TextureManager.loadTexture2D("." + File.separator + "textures" + File.separator + "sbFront.bmp");
         Texture texEast = TextureManager.loadTexture2D("." + File.separator + "textures" + File.separator + "sbRight.bmp");
         Texture texSouth = TextureManager.loadTexture2D("." + File.separator + "textures" + File.separator + "sbBack.bmp");
@@ -583,14 +598,14 @@ public class DuelArena extends BaseGame
      */
     private void updateVerticalPosition()
     {
-        Point3D curTargetLoc = new Point3D(cam1Controller.getTarget().getLocalTranslation().getCol(3));
+        Point3D curTargetLoc = getPlayer1Location();
         if(targetLiesInsideTerrain(imageTerrain, curTargetLoc))
         {
             float x = (float) curTargetLoc.getX();
             float z = (float) curTargetLoc.getZ();
             float heightRelativeToTerrainOrigin = imageTerrain.getHeight(x,z);
             double desiredHeight = heightRelativeToTerrainOrigin + imageTerrain.getOrigin().getY()+1;
-            cam1Controller.getTarget().getLocalTranslation().setElementAt(1, 3, desiredHeight);
+            cam1Controller.getTarget().getLocalTranslation().setElementAt(1, 3, desiredHeight+1);
         }
         else{//target is outside of terrain, so dont change y value
         }

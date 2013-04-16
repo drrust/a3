@@ -28,11 +28,11 @@ public class ThirdPersonCameraController
     private float cameraElevation;
     private float cameraDistanceFromTarget;
     private Point3D targetPos;
-    private float targetRotation;
+    private float targetRotation, speedMultiplier;
     private Matrix3D initialTargetRotation;
     private Matrix3D targetTransform;
     private Vector3D worldUp, targetOffset;
-    private String controllerName;
+    private String controllerName;    
     private boolean hasYAxisAction = false;
     private boolean hasXAxisAction = false;
     private boolean hasForwardAction = false;
@@ -40,15 +40,12 @@ public class ThirdPersonCameraController
     private boolean hasLeftAction = false;
     private boolean hasRightAction = false;
     
-    public ThirdPersonCameraController(ICamera cam, SceneNode target, IInputManager inputMgr, String controllerName, float azimuth, float targetRot, float camElev, float camDist)
+    public ThirdPersonCameraController(ICamera cam, SceneNode target, IInputManager inputMgr, String controllerName, float azimuth, float targetRot, float camElev, float camDist, float speedMult)
     {
         this.cam = cam;
         this.target = target;
-        //target.g
         initialTargetRotation = target.getLocalRotation();
-        //targetTransform = target.getLocalRotation();
-        //targetTransform.translate(target.getLocalTranslation().getCol(3).getX(),target.getLocalTranslation().getCol(3).getY(),target.getLocalTranslation().getCol(3).getZ());
-        //System.out.println("targetTransform = " + targetTransform);
+        speedMultiplier = speedMult;
         cameraAzimuth = azimuth;
         targetRotation = targetRot;
         cameraElevation = camElev;
@@ -217,11 +214,11 @@ public class ThirdPersonCameraController
             float moveAmount;
             if(hasLeftAction || hasRightAction)
             {
-                moveAmount = f/100;
+                moveAmount = (f/100) * speedMultiplier;
             }
             else
             {
-                moveAmount = f/50;
+                moveAmount = (f/50) * speedMultiplier;
             }            
            if(isOutsideDeadZone())
             {
@@ -258,11 +255,11 @@ public class ThirdPersonCameraController
                 float moveAmount;
                 if(hasLeftAction || hasRightAction)
                 {
-                     moveAmount = -f/100;
+                     moveAmount = (-f/100) * speedMultiplier;
                  }
                    else
                  {
-                      moveAmount = -f/50;
+                      moveAmount = (-f/50) * speedMultiplier;
                  }      
                 Vector3D viewDir = cam.getViewDirection().normalize();
                 Vector3D curLocAsVector = new Vector3D(cam.getLocation());
@@ -297,11 +294,11 @@ public class ThirdPersonCameraController
                 float moveAmount;
                 if(hasForwardAction || hasBackwardAction)
                 {
-                    moveAmount = -f/100;
+                    moveAmount = (-f/100) * speedMultiplier;
                 }
                 else
                 {
-                    moveAmount = -f/50;
+                    moveAmount = (-f/50) * speedMultiplier;
                 }      
                 Vector3D viewDir = cam.getRightAxis().normalize();
                 Vector3D curLocAsVector = new Vector3D(cam.getLocation());
@@ -334,11 +331,11 @@ public class ThirdPersonCameraController
             float moveAmount;
             if(hasForwardAction || hasBackwardAction)
             {                
-                moveAmount = f/100;
+                moveAmount = (f/100) * speedMultiplier;
             }
             else
             {
-                moveAmount = f/50f;
+                moveAmount = (f/50f) * speedMultiplier;
             }            
             //hasMultipleActions = true;
            if(isOutsideDeadZone())
@@ -436,11 +433,11 @@ public class ThirdPersonCameraController
             float moveAmount;
             if(hasYAxisAction)
             {
-                moveAmount = f/1000f;
+                moveAmount = (f/1000f) * speedMultiplier;
             }
             else
             {
-                moveAmount = f/2000f;
+                moveAmount = (f/2000f) * speedMultiplier;
             }
             Vector3D viewDir = cam.getRightAxis().normalize();
             Vector3D curLocAsVector = new Vector3D(cam.getLocation());

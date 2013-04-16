@@ -433,11 +433,11 @@ public class ThirdPersonCameraController
             float moveAmount;
             if(hasYAxisAction)
             {
-                moveAmount = (f/1000f) * speedMultiplier;
+                moveAmount = (f/100f) * speedMultiplier;
             }
             else
             {
-                moveAmount = (f/2000f) * speedMultiplier;
+                moveAmount = (f/50f) * speedMultiplier;
             }
             Vector3D viewDir = cam.getRightAxis().normalize();
             Vector3D curLocAsVector = new Vector3D(cam.getLocation());
@@ -486,11 +486,11 @@ public class ThirdPersonCameraController
             float moveAmount;
             if(hasXAxisAction)
             {
-                moveAmount = f/1000;
+                moveAmount = (f/100) * speedMultiplier;
             }
             else
             {
-                moveAmount = f/2000;
+                moveAmount = (f/50) * speedMultiplier;
             }
             Vector3D viewDir = cam.getViewDirection().normalize();
             Vector3D curLocAsVector = new Vector3D(cam.getLocation());

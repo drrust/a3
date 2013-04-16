@@ -18,8 +18,6 @@ import sage.scene.SceneNode;
 import sage.scene.HUDString;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
-import javax.media.opengl.GL;
-import javax.media.opengl.GL2;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -34,16 +32,13 @@ import sage.input.IInputManager.INPUT_ACTION_TYPE;
 import sage.input.InputManager;
 import sage.input.action.IAction;
 import sage.renderer.IRenderer;
-import sage.renderer.jogl.JOGLContextCapabilities;
 import sage.scene.Group;
 import sage.scene.SkyBox;
 import sage.scene.SkyBox.Face;
 import sage.scene.shape.Line;
 import sage.scene.shape.Pyramid;
-import sage.scene.shape.Rectangle;
 import sage.scene.state.RenderState;
 import sage.scene.state.TextureState;
-import sage.scene.state.jogl.JOGLTextureState;
 import sage.terrain.AbstractHeightMap;
 import sage.terrain.ImageBasedHeightMap;
 import sage.terrain.TerrainBlock;
@@ -586,7 +581,7 @@ public class DuelArena extends BaseGame
     {
         Vector3D terrainScale = new Vector3D(10, 1, 10);
         int terrainSize = heightMap.getSize();
-        System.out.println("height map size: " + terrainSize);
+        //System.out.println("height map size: " + terrainSize);
         float cornerHeight = heightMap.getTrueHeightAtPoint(0,0);
         Point3D terrainOrigin = new Point3D(0, -cornerHeight, 0);
         String name = "Terrain: " + heightMap.getClass().getSimpleName();
@@ -607,8 +602,7 @@ public class DuelArena extends BaseGame
             double desiredHeight = heightRelativeToTerrainOrigin + imageTerrain.getOrigin().getY()+1;
             cam1Controller.getTarget().getLocalTranslation().setElementAt(1, 3, desiredHeight+1);
         }
-        else{//target is outside of terrain, so dont change y value
-        }
+        else{}//target is outside of terrain, so dont change y value
     }
     
     /*
@@ -687,6 +681,9 @@ public class DuelArena extends BaseGame
             setSize(numOfControllers * 125, 300);
             add(buttonPan);            
         }
+        /*
+         * this action performed will make the appropriate action when a button on the initial window is pressed
+         */
         @Override
         public void actionPerformed(ActionEvent e) 
         {

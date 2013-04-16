@@ -3,6 +3,7 @@ package a3;
 import graphicslib3D.Point3D;
 import graphicslib3D.Vector3D;
 import sage.scene.shape.Pyramid;
+//new comment
 
 /**
  *MyBullet is an extension of the Sage shape object Pyramid, allowing the object to have more

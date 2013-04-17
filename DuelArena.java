@@ -13,11 +13,20 @@ import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
 import sage.app.BaseGame;
 import sage.scene.SceneNode;
 import sage.scene.HUDString;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineFactory;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -56,7 +65,7 @@ import sage.texture.TextureManager;
  */
 public class DuelArena extends BaseGame
 {
-    protected Group rootNode;
+    protected Group rootNode, Axis;
     
     private final int X_BULLET_BOUNDS = 1250;
     private final int Z_BULLET_BOUNDS = 1200;
@@ -65,33 +74,40 @@ public class DuelArena extends BaseGame
     private float pointTimer;
     private HUDString timeString;
     private HUDString damageDealtString;
-    
+    private File scriptFile;
     private TerrainBlock imageTerrain;
     
-    private HUDString player1Health,  player1Ammo, player1Loc;
-    private int healthP1,  ammoP1;
+    private HUDString playerHealth,  playerAmmo, playerLoc;
+    private int health,  ammo;
     
     private ArrayList<SceneNode> removableObjects;
     private IDisplaySystem display;
     private GraphicsDevice device;
     private Controller [ ] cs;
+    private String cwScriptFileName = "createScene.js";
     
-    private Controller controller1;    
-    private  ICamera camera1;
-    private SceneNode player1;    
-    private ThirdPersonCameraController cam1Controller;
+    private Controller controller;    
+    private  ICamera camera;
+    private SceneNode player;    
+    private ThirdPersonCameraController camController;
     private InitDialog myInitDiag;
     private SkyBox theSkyBox;
+    private long cwFileLastModifiedTime = 0;
+    private String userName, ip, port;
+    ScriptEngine jsEngine;
     
     private double formatedTime;
     private boolean fsemOn, controllerNotPicked = true;
     
-    public DuelArena(boolean fsemOn)
+    public DuelArena(boolean fsemOn, String userName, String ip, String port)
     {
         this.fsemOn = fsemOn;
         GraphicsEnvironment env = GraphicsEnvironment.getLocalGraphicsEnvironment();
         device = env.getDefaultScreenDevice();
         myInitDiag = new InitDialog(getSystemInfo());        
+        this.userName = userName;
+        this.ip = ip;
+        this.port = port;
     }
    /*
     * Override of BaseGame's method for initializing a display system which will be used to set FSEM,
@@ -127,24 +143,26 @@ public class DuelArena extends BaseGame
     @Override
     public void initGame()
     {
+        //get Java script engine manager
+        ScriptEngineManager factory = new ScriptEngineManager();
+        //get the JavaScript engine
+        jsEngine = factory.getEngineByName("js");        
         //instantiate the display system and set title to game name
         display = getDisplaySystem();
         display.setTitle("Duel Arena");
         
-        //initialize objects in world
+        //-----------------------------------------run a JavaScript program---------------------------------------------------------
+        String scriptFileName = "createScene.js";
+        executeScript(jsEngine, scriptFileName);
+        //------------------------------------------initialize objects in world---------------------------------------------------------
         createScene();
-               
-        //create player avatars, HUDS, and cameras
+        //----------------------------------create player avatars, HUDS, and cameras----------------------------------------
         createPlayers();
         
-        //initialize the game controls for keyboard and gamepad
+        //----------------------------initialize the game controls for keyboard and gamepad-------------------------------
         initInput();
         
-        //add game state stings to HUD      
-        damageDealtString = new HUDString("");
-        damageDealtString.setColor(Color.yellow);
-        damageDealtString.setLocation(0.40, 0.10);              
-        addGameWorldObject(damageDealtString);        
+        
         rootNode.updateGeometricState(0, true);
         rootNode.updateRenderStates();
         
@@ -158,8 +176,20 @@ public class DuelArena extends BaseGame
     @Override
     public void update(float elapsedTimeMS)
     {
+        long modTime = scriptFile.lastModified();
+        if( modTime > cwFileLastModifiedTime)
+        {
+            cwFileLastModifiedTime = modTime;
+            executeScript(jsEngine, cwScriptFileName);
+            removeGameWorldObject(rootNode);
+            createScene();
+            createPlayers();
+            initInput();
+        }
+        rootNode.updateGeometricState(time, true);
+        rootNode.updateRenderStates();
         //update skybox location
-        Point3D camLoc = camera1.getLocation();
+        Point3D camLoc = camera.getLocation();
         Matrix3D camTranslation = new Matrix3D();
         camTranslation.translate(camLoc.getX(), camLoc.getY(), camLoc.getZ());
         theSkyBox.setLocalTranslation(camTranslation);
@@ -169,18 +199,19 @@ public class DuelArena extends BaseGame
         
         checkIfGameOver();
         //update camare controller for the player
-        cam1Controller.update(elapsedTimeMS);
+        camController.update(elapsedTimeMS);
         //check for collisions for bullets and extra ammo and apply appropriate updates when event occurs
         checkForCollisions();
         checkForExpiredBullets();
         removeObjects();
-        pointDisplayTimer();
+//        pointDisplayTimer();
         //update the current health and ammo on the HUD
-        player1Health.setText("Health: " + healthP1);
-        player1Ammo.setText("Ammo: " + ammoP1);        
+        playerHealth.setText("Health: " + health);
+        playerAmmo.setText("Ammo: " + ammo);        
          DecimalFormat df = new DecimalFormat("0");
-        player1Loc.setText("Player Location: " + df.format(getPlayer1Location().getX()) + ", " + 
-                                                                df.format(getPlayer1Location().getY()) +  ", " + df.format(getPlayer1Location().getZ()));
+        playerLoc.setText("Player Location: (" + df.format(getPlayer1Location().getX()) + ", " + 
+                                                                df.format(getPlayer1Location().getY()) +  ", " + 
+                                                                df.format(getPlayer1Location().getZ()) + ")");
         
         //update elapsed time on HUD
         time += elapsedTimeMS;
@@ -202,7 +233,7 @@ public class DuelArena extends BaseGame
         renderer.clearRenderQueue();
         renderer.addToRenderQueue(rootNode);
         renderer.processRenderQueue();
-        renderer.setCamera(camera1);
+        renderer.setCamera(camera);
         super.render();
     }
     
@@ -246,14 +277,14 @@ public class DuelArena extends BaseGame
             {
                 if(s.getWorldBound() != null)
                 {
-                    if(s.getWorldBound().contains( ((ThirdPersonCameraController)cam1Controller).getTargetLocation()))
+                    if(s.getWorldBound().contains( ((ThirdPersonCameraController)camController).getTargetLocation()))
                     {
-                        if(!( ((MyBullet)s).getBirthedControllerName().equals(cam1Controller.getControllerName()) ) )
+                        if(!( ((MyBullet)s).getBirthedControllerName().equals(camController.getControllerName()) ) )
                         {
                             //if bullet is colliding with the avatar of a player who didnt shoot the bullet, then set to 
                             //collided, otherwise, bullet collided with the same avatar that shot the bullet so ignore collision.
                             ((MyBullet)s).setCollided();
-                            healthP1 -= 5;
+                            health -= 5;
                         }
                     }             
                 }
@@ -281,34 +312,55 @@ public class DuelArena extends BaseGame
          }
     }
     
+    /**
+     *
+     * @param engine is the script engine that will interpret the java script code
+     * @param scriptFileName is the file name of the java script code to be interpreted
+     */
+    public void executeScript(ScriptEngine engine, String scriptFileName)
+    {
+        setupScriptVals();
+        scriptFile = new File(scriptFileName);
+        try
+        {
+            FileReader fileReader = new FileReader(scriptFile);
+            engine.eval(fileReader);
+            fileReader.close();                    
+        }
+        catch(FileNotFoundException e1)
+        {
+            System.out.println(scriptFileName + " not found " + e1);
+        }
+        catch(IOException e2)
+        {
+            System.out.println("IO problem with " + scriptFileName + e2);
+        }
+        catch(ScriptException e3)
+        {
+            System.out.println("ScriptException in " + scriptFileName + e3);
+        }
+        catch(NullPointerException e4)
+        {
+            System.out.println("Null ptr exception reading" + scriptFileName + e4);
+        }
+    }
+    
     /*
      * This method creates all the game objects when the game is initially started
      */
     public void createScene()
     {
-        rootNode = new Group("root node");
+//        rootNode = new Group("rootNode");
+        rootNode = new Group("rootNode");
         //add skybox
         createSkyBox();
+        //add axis
+        Group axisGroup = (Group)jsEngine.get("axisGroup");
+        rootNode.addChild(axisGroup);
         //add terrain
         createTerrain();
-        //create world axis        
-        Point3D origin = new Point3D(0,0,0);
-        Point3D xEnd = new Point3D(100,0,0);
-        Point3D yEnd = new Point3D(0,100,0);
-        Point3D zEnd = new Point3D(0,0,100);
-        Line xAxis = new Line (origin, xEnd, Color.red, 2);
-        rootNode.addChild(xAxis);
-        Line yAxis = new Line (origin, yEnd, Color.green, 2);
-        rootNode.addChild(yAxis);
-        Line zAxis = new Line (origin, zEnd, Color.blue, 2);
-        rootNode.addChild(zAxis);
-        //add axis and floor to game world       
-        addGameWorldObject(rootNode);
-        //        addGameWorldObject(floor);
-//        addGameWorldObject(xAxis);
-//        addGameWorldObject(yAxis);
-//        addGameWorldObject(zAxis);
-        
+        //add rootnode to game world
+        addGameWorldObject(rootNode);        
         //instantiate an array list used to collected removable objects
         removableObjects = new ArrayList();
     }
@@ -376,15 +428,15 @@ public class DuelArena extends BaseGame
     {
         //add input manager
         IInputManager im = getInputManager();
-        cam1Controller = new ThirdPersonCameraController(camera1, player1, im, controller1.getName(), 1.57f, 20f, 0.3f, 15f, 2f);
+        camController = new ThirdPersonCameraController(camera, player, im, controller.getName(), 1.57f, 20f, 0.3f, 15f, 2f);
         
-        IAction shootBullet1 = new ShootBullet(cam1Controller, this);
-        im.associateAction(controller1.getName(), Component.Identifier.Key.C, shootBullet1, IInputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY );
-        im.associateAction(controller1.getName(), Component.Identifier.Button._1, shootBullet1, IInputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY );
+        IAction shootBullet1 = new ShootBullet(camController, this);
+        im.associateAction(controller.getName(), Component.Identifier.Key.C, shootBullet1, IInputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY );
+        im.associateAction(controller.getName(), Component.Identifier.Button._1, shootBullet1, IInputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY );
 
         IAction quitGame = new QuitGameAction(this);            
-        im.associateAction(controller1.getName(), Component.Identifier.Key.ESCAPE, quitGame, INPUT_ACTION_TYPE.ON_PRESS_AND_RELEASE );
-        im.associateAction(controller1.getName(), Component.Identifier.Button._7, quitGame, INPUT_ACTION_TYPE.ON_PRESS_AND_RELEASE );        
+        im.associateAction(controller.getName(), Component.Identifier.Key.ESCAPE, quitGame, INPUT_ACTION_TYPE.ON_PRESS_AND_RELEASE );
+        im.associateAction(controller.getName(), Component.Identifier.Button._7, quitGame, INPUT_ACTION_TYPE.ON_PRESS_AND_RELEASE );        
     }
     
     /*
@@ -405,13 +457,13 @@ public class DuelArena extends BaseGame
     private void createPlayers()
     {
         //------------------------------------------setup player 1's avatar and camera-------------------------------------------
-        player1 = new Pyramid("PyramidP1");
-        player1.translate(376, 1, 803);
-        player1.rotate(-90, new Vector3D(0, 1, 0));
-        addGameWorldObject(player1);
-        camera1 = new JOGLCamera(display.getRenderer());
-        camera1.setPerspectiveFrustum(60, 1, 1, 1000);
-        camera1.setViewport(0.0, 1.0, 0.0, 1.0);
+        player = (Pyramid)jsEngine.get("avatar");
+        rootNode.addChild(player);
+//        addGameWorldObject(player1);
+//        camera1 = new JOGLCamera(display.getRenderer());
+        camera = (JOGLCamera)jsEngine.get("camera1");
+//        camera1.setPerspectiveFrustum(60, 1, 1, 1200);
+//        camera1.setViewport(0.0, 1.0, 0.0, 1.0);
         createPlayerHUDs();
     }
     
@@ -421,44 +473,31 @@ public class DuelArena extends BaseGame
     private void createPlayerHUDs()
     {
         //---------------------------------------------------player's HUD strings---------------------------------------------------
-        HUDString player1ID = new HUDString("Player1");
-        player1ID.setName("Player1ID");
-        player1ID.setLocation(0.01, 0.98);
-        player1ID.setRenderMode(SceneNode.RENDER_MODE.ORTHO);
-        player1ID.setColor(Color.ORANGE );
-        player1ID.setCullMode(SceneNode.CULL_MODE.NEVER);
-        camera1.addToHUD(player1ID);
+        HUDString playerID = (HUDString)jsEngine.get("playerID");
+        playerID.setRenderMode(SceneNode.RENDER_MODE.ORTHO);
+        playerID.setCullMode(SceneNode.CULL_MODE.NEVER);
+        camera.addToHUD(playerID);
 
-        healthP1 = 100;
-        player1Health = new HUDString("Health: " + healthP1);
-        player1Health.setName("Player1Health");
-        player1Health.setLocation(0.01, 0.96);
-        player1Health.setRenderMode(SceneNode.RENDER_MODE.ORTHO);
-        player1Health.setColor(Color.ORANGE );
-        player1Health.setCullMode(SceneNode.CULL_MODE.NEVER);
-        camera1.addToHUD(player1Health);
+        double jsHealth = (double)jsEngine.get("health");
+        health = (int)jsHealth;
+        playerHealth = (HUDString)jsEngine.get("playerHealth");
+        playerHealth.setRenderMode(SceneNode.RENDER_MODE.ORTHO);
+        playerHealth.setCullMode(SceneNode.CULL_MODE.NEVER);
+        camera.addToHUD(playerHealth);
         
-        player1Loc = new HUDString("Player Location: ");
-        player1Loc.setName("Player1Loc");
-        player1Loc.setLocation(0.01, 0.04);
-        player1Loc.setRenderMode(SceneNode.RENDER_MODE.ORTHO);
-        player1Loc.setColor(Color.ORANGE );
-        player1Loc.setCullMode(SceneNode.CULL_MODE.NEVER);
-        camera1.addToHUD(player1Loc);
+        playerLoc = (HUDString)jsEngine.get("playerLoc");
+        playerLoc.setRenderMode(SceneNode.RENDER_MODE.ORTHO);
+        playerLoc.setCullMode(SceneNode.CULL_MODE.NEVER);
+        camera.addToHUD(playerLoc);
         
-        ammoP1 = 100;
-        player1Ammo = new HUDString("Ammo: " + ammoP1);
-        player1Ammo.setName("Player1Ammo");
-        player1Ammo.setLocation(0.01, 0.94);
-        player1Ammo.setRenderMode(SceneNode.RENDER_MODE.ORTHO);
-        player1Ammo.setColor(Color.ORANGE );
-        player1Ammo.setCullMode(SceneNode.CULL_MODE.NEVER);
-        camera1.addToHUD(player1Ammo);
+        ammo = 100;
+        playerAmmo = (HUDString)jsEngine.get("playerAmmo");
+        playerAmmo.setRenderMode(SceneNode.RENDER_MODE.ORTHO);
+        playerAmmo.setCullMode(SceneNode.CULL_MODE.NEVER);
+        camera.addToHUD(playerAmmo);
         
-        timeString = new HUDString("Time: " + formatedTime);
-        timeString.setLocation(0.75, 1.1); //default location is (0,0), goes from (0,0) lower left to (1,1) top right.
-        timeString.setColor(Color.white);        
-        camera1.addToHUD(timeString);
+        timeString = (HUDString)jsEngine.get("timeString");
+        camera.addToHUD(timeString);
     }
     
     /*
@@ -475,7 +514,7 @@ public class DuelArena extends BaseGame
      */
     public void decrementAmmo(int amount)
     {
-        ammoP1 -= amount;
+        ammo -= amount;
     }
     
     /*
@@ -484,7 +523,7 @@ public class DuelArena extends BaseGame
      */
     public void incrementAmmo(int amount)
     {
-        ammoP1 += amount;
+        ammo += amount;
     }
     
     /*
@@ -492,7 +531,7 @@ public class DuelArena extends BaseGame
      */
     public String getPlayer1ControllerName()
     {
-        return cam1Controller.getControllerName();
+        return camController.getControllerName();
     }
     
     /*
@@ -500,19 +539,19 @@ public class DuelArena extends BaseGame
      */
     public int getPlayer1Ammo()
     {
-        return ammoP1;
+        return ammo;
     }
 
     public Point3D getPlayer1Location()
     {
-        return new Point3D(cam1Controller.getTarget().getLocalTranslation().getCol(3));
+        return new Point3D(camController.getTarget().getLocalTranslation().getCol(3));
     }
     /*
      * checks if the game is over by seeing if the player has lost all health
      */
     private void checkIfGameOver() 
     {
-        if(healthP1 <= 0)
+        if(health <= 0)
         {
             System.out.println("\n\tGame Over\tPlayer 2 wins!");
             //setGameOver(true);
@@ -559,7 +598,7 @@ public class DuelArena extends BaseGame
         theSkyBox.setTexture(Face.Down, texDown);
         rootNode.addChild(theSkyBox);
     }
-
+    
     /*
      * call this method to create the terrain, currently implements an image based height map that will be used
      * for creating the terrain block.
@@ -600,7 +639,7 @@ public class DuelArena extends BaseGame
             float z = (float) curTargetLoc.getZ();
             float heightRelativeToTerrainOrigin = imageTerrain.getHeight(x,z);
             double desiredHeight = heightRelativeToTerrainOrigin + imageTerrain.getOrigin().getY()+1;
-            cam1Controller.getTarget().getLocalTranslation().setElementAt(1, 3, desiredHeight+1);
+            camController.getTarget().getLocalTranslation().setElementAt(1, 3, desiredHeight+1);
         }
         else{}//target is outside of terrain, so dont change y value
     }
@@ -634,6 +673,15 @@ public class DuelArena extends BaseGame
         Texture terrainTex = TextureManager.loadTexture2D("." + File.separator + "terrain" + File.separator + fileName);
         texState.setTexture(terrainTex);
         return texState;
+    }
+
+    /*
+     * this method sends values from the game to the java script code for the java script to be able to use
+     */
+    private void setupScriptVals()
+    {
+        jsEngine.put("userName", userName);
+        jsEngine.put("display", display);
     }
     
      /*
@@ -678,7 +726,7 @@ public class DuelArena extends BaseGame
                     ((JButton)button.get(numOfControllers - 1)).addActionListener(this);
                 }
             }
-            setSize(numOfControllers * 125, 300);
+            setSize(numOfControllers * 125+125, 300);
             add(buttonPan);            
         }
         /*
@@ -692,7 +740,7 @@ public class DuelArena extends BaseGame
                 if(e.getSource().equals(((JButton)button.get(i))))
                 {
                     controllerNotPicked = false;
-                    controller1 = (((Controller)controllers.get(i)));
+                    controller = (((Controller)controllers.get(i)));
                     setVisible(false);
                 }
             }

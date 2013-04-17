@@ -9,13 +9,17 @@ import a3.DuelArena;
  * @author Daniel Swartz
  */
 public class Starter {
-
+    static private NetworkSetup nw;
+    static String ip, port, userName;
     //hello
     /**
      * @param args the command line arguments
      */
     public static void main(String[] args) 
     {
+        nw = new NetworkSetup();
+        nw.setVisible(true);
+        setupNetwork();
         //check for full screen arguments
         boolean fsemOn = false;
         if(args.length != 0)
@@ -27,7 +31,29 @@ public class Starter {
                 fsemOn = true;
             }
         }
-        DuelArena myGame = new DuelArena(fsemOn);
+        DuelArena myGame = new DuelArena(fsemOn, userName, ip, port);
         myGame.start();
     }   
+    /*
+      * use a "sleep thread"  to wait for the network setup to be picked from 
+     * the network window
+      */
+    static private void setupNetwork()
+    {
+        while(!nw.buttonPressed())
+        {
+            try
+            {
+                Thread.sleep(100);
+            }
+            catch(InterruptedException e)
+            {
+                throw new RuntimeException("Display creation interrupted");
+            }    
+        }
+        userName = nw.getUserName();
+        port = nw.getIP();
+        ip = nw.getPort();
+        nw.setVisible(false);
+    }
 }

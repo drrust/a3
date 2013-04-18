@@ -23,7 +23,7 @@ import sage.scene.SceneNode;
 public class ThirdPersonCameraController 
 {
     private ICamera cam;
-    private SceneNode target;
+    private Avatar target;
     private float cameraAzimuth;
     private float cameraElevation;
     private float cameraDistanceFromTarget;
@@ -40,7 +40,7 @@ public class ThirdPersonCameraController
     private boolean hasLeftAction = false;
     private boolean hasRightAction = false;
     
-    public ThirdPersonCameraController(ICamera cam, SceneNode target, IInputManager inputMgr, String controllerName, float azimuth, float targetRot, float camElev, float camDist, float speedMult)
+    public ThirdPersonCameraController(ICamera cam, Avatar target, IInputManager inputMgr, String controllerName, float azimuth, float targetRot, float camElev, float camDist, float speedMult)
     {
         this.cam = cam;
         this.target = target;
@@ -64,6 +64,7 @@ public class ThirdPersonCameraController
         updateTarget();
         updateCameraPosition();
         cam.lookAt(targetPos, worldUp);
+        target.setViewDirection(cam.getViewDirection());
         hasXAxisAction = false;
         hasYAxisAction = false;
         hasForwardAction = false;

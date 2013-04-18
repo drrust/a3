@@ -1,5 +1,6 @@
 package a3.commands;
 
+import a3.Avatar;
 import a3.DuelArena;
 import a3.MyBulletController;
 import a3.ThirdPersonCameraController;
@@ -18,15 +19,15 @@ import sage.scene.bounding.BoundingSphere;
  */
 public class ShootBullet extends GameAbstractInputAction
 {
-    private ThirdPersonCameraController myController;
+    private Avatar avatar;
     private DuelArena theGame;
     /*
      * @controller is the controller owned by the player who will activate this class
      * @theGame is a reference to the game that bullets will be shot in
      */
-    public ShootBullet(ThirdPersonCameraController controller, DuelArena theGame)
+    public ShootBullet(Avatar avatar, DuelArena theGame)
     {
-        myController = controller;
+        this.avatar = avatar;
         this.theGame = theGame;
     }
 
@@ -48,10 +49,12 @@ public class ShootBullet extends GameAbstractInputAction
         }
        if(isOutsideDeadZone())
         {
-            MyBullet bullet = new  MyBullet(myController);
-            bullet.translate((float)myController.getTargetLocation().getX(), (float)myController.getTargetLocation().getY(), (float)myController.getTargetLocation().getZ());
-            bullet.scale(0.1f, 0.3f, 0.1f);
-            bullet.rotate(-90, myController.getTargetsCamRightAxis());
+            MyBullet bullet = new  MyBullet(avatar);
+            bullet.translate((float)avatar.getWorldTranslation().getCol(3).getX(), 
+                                        (float)avatar.getWorldTranslation().getCol(3).getY(), 
+                                        (float)avatar.getWorldTranslation().getCol(3).getZ());
+            bullet.scale(0.1f, 0.3f, 0.1f);           
+            bullet.rotate(0, avatar.getViewDirection());
             ((BoundingSphere)bullet.getLocalBound()).setRadius(0.6f); //change bounding sphere on bullet
             MyBulletController bc = new MyBulletController();
             bc.addControlledNode(bullet);

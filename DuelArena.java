@@ -1,12 +1,12 @@
 package a3;
 
+import a3.Interfaces.INetworkable;
 import a3.commands.QuitGameAction;
 import a3.commands.ShootBullet;
 import graphicslib3D.Matrix3D;
 import sage.camera.ICamera;
 import graphicslib3D.Point3D;
 import graphicslib3D.Vector3D;
-import java.awt.Color;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
 import java.awt.GridLayout;
@@ -63,7 +63,7 @@ import sage.texture.TextureManager;
  * Finished on 3/19/2013
  * @author Daniel Swartz
  */
-public class DuelArena extends BaseGame
+public class DuelArena extends BaseGame implements INetworkable
 {
     protected Group rootNode, Axis;
     
@@ -88,7 +88,7 @@ public class DuelArena extends BaseGame
     
     private Controller controller;    
     private  ICamera camera;
-    private SceneNode player;    
+    private Avatar player;    
     private ThirdPersonCameraController camController;
     private InitDialog myInitDiag;
     private SkyBox theSkyBox;
@@ -157,8 +157,7 @@ public class DuelArena extends BaseGame
         //------------------------------------------initialize objects in world---------------------------------------------------------
         createScene();
         //----------------------------------create player avatars, HUDS, and cameras----------------------------------------
-        createPlayers();
-        
+        createPlayers();        
         //----------------------------initialize the game controls for keyboard and gamepad-------------------------------
         initInput();
         
@@ -192,7 +191,8 @@ public class DuelArena extends BaseGame
         Point3D camLoc = camera.getLocation();
         Matrix3D camTranslation = new Matrix3D();
         camTranslation.translate(camLoc.getX(), camLoc.getY(), camLoc.getZ());
-        theSkyBox.setLocalTranslation(camTranslation);
+        ((SkyBox)jsEngine.get("theSkyBox")).setLocalTranslation(camTranslation);
+        //theSkyBox.setLocalTranslation(camTranslation);
         
         //update avatars location relative to terrain
         updateVerticalPosition();
@@ -204,7 +204,6 @@ public class DuelArena extends BaseGame
         checkForCollisions();
         checkForExpiredBullets();
         removeObjects();
-//        pointDisplayTimer();
         //update the current health and ammo on the HUD
         playerHealth.setText("Health: " + health);
         playerAmmo.setText("Ammo: " + ammo);        
@@ -350,18 +349,8 @@ public class DuelArena extends BaseGame
      */
     public void createScene()
     {
-//        rootNode = new Group("rootNode");
-        rootNode = new Group("rootNode");
-        //add skybox
-        createSkyBox();
-        //add axis
-        Group axisGroup = (Group)jsEngine.get("axisGroup");
-        rootNode.addChild(axisGroup);
-        //add terrain
-        createTerrain();
-        //add rootnode to game world
+        rootNode = (Group)jsEngine.get("rootNode");
         addGameWorldObject(rootNode);        
-        //instantiate an array list used to collected removable objects
         removableObjects = new ArrayList();
     }
     
@@ -430,7 +419,7 @@ public class DuelArena extends BaseGame
         IInputManager im = getInputManager();
         camController = new ThirdPersonCameraController(camera, player, im, controller.getName(), 1.57f, 20f, 0.3f, 15f, 2f);
         
-        IAction shootBullet1 = new ShootBullet(camController, this);
+        IAction shootBullet1 = new ShootBullet((Avatar)player, this);
         im.associateAction(controller.getName(), Component.Identifier.Key.C, shootBullet1, IInputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY );
         im.associateAction(controller.getName(), Component.Identifier.Button._1, shootBullet1, IInputManager.INPUT_ACTION_TYPE.ON_PRESS_ONLY );
 
@@ -457,13 +446,8 @@ public class DuelArena extends BaseGame
     private void createPlayers()
     {
         //------------------------------------------setup player 1's avatar and camera-------------------------------------------
-        player = (Pyramid)jsEngine.get("avatar");
-        rootNode.addChild(player);
-//        addGameWorldObject(player1);
-//        camera1 = new JOGLCamera(display.getRenderer());
+        player = (Avatar)jsEngine.get("avatar");
         camera = (JOGLCamera)jsEngine.get("camera1");
-//        camera1.setPerspectiveFrustum(60, 1, 1, 1200);
-//        camera1.setViewport(0.0, 1.0, 0.0, 1.0);
         createPlayerHUDs();
     }
     
@@ -490,7 +474,8 @@ public class DuelArena extends BaseGame
         playerLoc.setCullMode(SceneNode.CULL_MODE.NEVER);
         camera.addToHUD(playerLoc);
         
-        ammo = 100;
+        double jsAmmo = (double)jsEngine.get("ammo");
+        ammo = (int)jsAmmo;
         playerAmmo = (HUDString)jsEngine.get("playerAmmo");
         playerAmmo.setRenderMode(SceneNode.RENDER_MODE.ORTHO);
         playerAmmo.setCullMode(SceneNode.CULL_MODE.NEVER);
@@ -620,7 +605,6 @@ public class DuelArena extends BaseGame
     {
         Vector3D terrainScale = new Vector3D(10, 1, 10);
         int terrainSize = heightMap.getSize();
-        //System.out.println("height map size: " + terrainSize);
         float cornerHeight = heightMap.getTrueHeightAtPoint(0,0);
         Point3D terrainOrigin = new Point3D(0, -cornerHeight, 0);
         String name = "Terrain: " + heightMap.getClass().getSimpleName();
@@ -633,12 +617,13 @@ public class DuelArena extends BaseGame
     private void updateVerticalPosition()
     {
         Point3D curTargetLoc = getPlayer1Location();
-        if(targetLiesInsideTerrain(imageTerrain, curTargetLoc))
+        TerrainBlock theTB = ((TerrainBlock)jsEngine.get("imageTerrain"));
+        if(targetLiesInsideTerrain(theTB, curTargetLoc))
         {
             float x = (float) curTargetLoc.getX();
             float z = (float) curTargetLoc.getZ();
-            float heightRelativeToTerrainOrigin = imageTerrain.getHeight(x,z);
-            double desiredHeight = heightRelativeToTerrainOrigin + imageTerrain.getOrigin().getY()+1;
+            float heightRelativeToTerrainOrigin = theTB.getHeight(x,z);
+            double desiredHeight = heightRelativeToTerrainOrigin + theTB.getOrigin().getY()+1;
             camController.getTarget().getLocalTranslation().setElementAt(1, 3, desiredHeight+1);
         }
         else{}//target is outside of terrain, so dont change y value
@@ -682,8 +667,95 @@ public class DuelArena extends BaseGame
     {
         jsEngine.put("userName", userName);
         jsEngine.put("display", display);
+        jsEngine.put("renderer", this.getRenderer());
+        jsEngine.put("faceNorth", Face.North);
+        jsEngine.put("faceSouth", Face.South);
+        jsEngine.put("faceEast", Face.East);
+        jsEngine.put("faceWest", Face.West);
+        jsEngine.put("faceUp", Face.Up);
+        jsEngine.put("faceDown", Face.Down);
     }
-    
+
+    @Override
+    public SceneNode createSceneNode(String type)
+    {
+        if(type.equalsIgnoreCase("bullet"))
+        {
+            //MyBullet newBullet = new MyBullet(); //needs to know who shot bullet, where bullets spawns, and the direction of the bullet
+        }
+        
+        throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public void setUpGameWorld(String levelName)
+    {
+        ScriptEngineManager factory = new ScriptEngineManager();
+        jsEngine = factory.getEngineByName("js");
+        String scriptFileName = "createScene.js";
+        executeScript(jsEngine, scriptFileName);
+        createScene();
+    }
+
+    @Override
+    public void setAvitar(SceneNode avitar)
+    {
+        player = (Avatar)avitar;
+        camera = (JOGLCamera)jsEngine.get("camera1");
+        createPlayerHUDs();
+        //----------------------------------create player avatars, HUDS, and cameras----------------------------------------
+        createPlayers();        
+        //----------------------------initialize the game controls for keyboard and gamepad-------------------------------
+        initInput();
+    }
+
+    @Override
+    public String getGameWorldLevelName()
+    {
+        return cwScriptFileName;
+    }
+
+    @Override
+    public SceneNode getAvitar()
+    {
+        return player;
+    }
+
+    @Override
+    public Group getRootNode()
+    {
+        return rootNode;
+    }
+
+    @Override
+    public String getType(SceneNode node)
+    {
+        if(node instanceof MyBullet)
+        {
+            return "bullet";
+        }
+        else if(node instanceof Pyramid)
+        {
+            return "avatar";
+        }
+        return "n/a";
+    }
+
+    @Override
+    public SceneNode generateNewAvitar(String name)
+    {
+         Pyramid avatar = new Pyramid(userName);
+        avatar.translate(376, 1, 803);
+        avatar.rotate(-90, new Vector3D(0, 1, 0));
+        return avatar;
+    }
+
+    @Override
+    public ArrayList<SceneNode> getObjectsAddedAfterInit()
+    {
+        throw new UnsupportedOperationException("Not supported yet.");
+    }
+
      /*
      * This Jframe will display when the game is started and will ask the user what controller they would 
      * like to use. Supports only keyboards and gamepads.

@@ -27,13 +27,19 @@ public class MyBullet extends Pyramid
     /*
      * instantiates a MyBullet object setting a velocity, and controller that created the bullet
      */
-    public MyBullet(ThirdPersonCameraController controller)
+    public MyBullet(Avatar avatar)
     {
-        moveDirection = new Vector3D(controller.getTargetsCamViewDir().getX(), controller.getTargetsCamViewDir().getY(), controller.getTargetsCamViewDir().getZ());
+        moveDirection = new Vector3D(avatar.getViewDirection().getX(), avatar.getViewDirection().getY(), avatar.getViewDirection().getZ());
         velocity = 1.5;
-        controllerName = controller.getControllerName();
+        controllerName = avatar.getName();
     }
 
+//    public MyBullet(Point3D spawnLoc, Vector3D direction)
+//    {
+//        moveDirection = direction;
+//        velocity = 1.5;
+//        controllerName = controller.getControllerName();
+//    }
     
     /*
      * This method should be invoked to set this object having collided with another game world object
